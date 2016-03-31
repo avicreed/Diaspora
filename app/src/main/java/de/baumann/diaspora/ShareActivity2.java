@@ -19,10 +19,14 @@
 
 package de.baumann.diaspora;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -35,6 +39,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.webkit.JsResult;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
@@ -60,6 +65,9 @@ public class ShareActivity2 extends MainActivity {
     private ProgressBar progressBar;
     private SwipeRefreshLayout swipeView;
 
+    static final int INPUT_FILE_REQUEST_CODE = 1;
+    private static final int REQUEST_CODE_ASK_PERMISSIONS = 123;
+
     @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -72,7 +80,8 @@ public class ShareActivity2 extends MainActivity {
         progressBar = (ProgressBar)findViewById(R.id.progressBar);
 
         swipeView = (SwipeRefreshLayout) findViewById(R.id.swipe);
-        swipeView.setEnabled(false);
+        swipeView.setColorSchemeResources(R.color.colorPrimary,
+                R.color.fab_big);
 
         toolbar.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -82,15 +91,16 @@ public class ShareActivity2 extends MainActivity {
                     startActivityForResult(intent, 100);
                     overridePendingTransition(0, 0);
                 } else {
-                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_INDEFINITE).show();
                 }
             }
         });
 
 
-        podDomain = ((App)getApplication()).getSettings().getPodDomain();
+        SharedPreferences config = getSharedPreferences("PodSettings", MODE_PRIVATE);
+        podDomain = config.getString("podDomain", null);
 
-        fab = (com.getbase.floatingactionbutton.FloatingActionsMenu) findViewById(R.id.fab_expand_menu_button);
+        fab = (com.getbase.floatingactionbutton.FloatingActionsMenu) findViewById(R.id.multiple_actions);
         fab.setVisibility(View.GONE);
 
         webView = (WebView)findViewById(R.id.webView);
@@ -121,6 +131,28 @@ public class ShareActivity2 extends MainActivity {
             public void onPageFinished(WebView view, String url) {
                 Log.i(TAG, "Finished loading URL: " + url);
             }
+
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                Log.e(TAG, "Error: " + description);
+
+                new AlertDialog.Builder(ShareActivity2.this)
+                        .setIcon(android.R.drawable.ic_dialog_alert)
+                        .setMessage(description)
+                        .setPositiveButton("CLOSE", null)
+                        .show();
+            }
+        });
+
+        swipeView.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                if (Helpers.isOnline(ShareActivity2.this)) {
+                    webView.reload();
+                } else {
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_INDEFINITE).show();
+                    swipeView.setRefreshing(false);
+                }
+            }
         });
 
 
@@ -149,6 +181,31 @@ public class ShareActivity2 extends MainActivity {
 
             @Override
             public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
+
+                if (android.os.Build.VERSION.SDK_INT >= 23) {
+                    int hasWRITE_EXTERNAL_STORAGE = checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+                    if (hasWRITE_EXTERNAL_STORAGE != PackageManager.PERMISSION_GRANTED) {
+                        if (!shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                            new AlertDialog.Builder(ShareActivity2.this)
+                                    .setMessage(R.string.permissions)
+                                    .setPositiveButton(getString(R.string.yes), new DialogInterface.OnClickListener() {
+                                        @Override
+                                        public void onClick(DialogInterface dialog, int which) {
+                                            if (android.os.Build.VERSION.SDK_INT >= 23)
+                                                requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                                                        REQUEST_CODE_ASK_PERMISSIONS);
+                                        }
+                                    })
+                                    .setNegativeButton(getString(R.string.no), null)
+                                    .show();
+                            return (true);
+                        }
+                        requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                                REQUEST_CODE_ASK_PERMISSIONS);
+                        return (true);
+                    }
+                }
+
                 if (mFilePathCallback != null) mFilePathCallback.onReceiveValue(null);
 
                 mFilePathCallback = filePathCallback;
@@ -194,6 +251,10 @@ public class ShareActivity2 extends MainActivity {
                 startActivityForResult(chooserIntent, INPUT_FILE_REQUEST_CODE);
 
                 return true;
+            }
+
+            public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
+                return super.onJsAlert(view, url, message, result);
             }
         });
 
@@ -303,8 +364,14 @@ public class ShareActivity2 extends MainActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
 
-        if (id == R.id.action_exit) {
-            moveTaskToBack(true);
+        if (id == R.id.action_reload) {
+            if (Helpers.isOnline(ShareActivity2.this)) {
+                webView.reload();
+                return true;
+            } else {
+                Snackbar.make(getWindow().findViewById(R.id.drawer_layout), R.string.no_internet, Snackbar.LENGTH_SHORT).show();
+                return false;
+            }
         }
 
         return super.onOptionsItemSelected(item);

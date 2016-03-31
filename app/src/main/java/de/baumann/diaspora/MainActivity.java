@@ -29,6 +29,7 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -62,15 +63,10 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
-
-import com.getbase.floatingactionbutton.FloatingActionsMenu;
-
-import org.json.JSONException;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -78,51 +74,34 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-import butterknife.Bind;
-import butterknife.ButterKnife;
 import de.baumann.diaspora.utils.Helpers;
+import de.baumann.diaspora.utils.PrefManager;
 import de.baumann.diaspora.utils.SoftKeyboardStateWatcher;
 
 public class MainActivity extends AppCompatActivity
-        implements NavigationView.OnNavigationItemSelectedListener, WebUserProfileChangedListener {
+        implements NavigationView.OnNavigationItemSelectedListener {
 
 
-    static final int INPUT_FILE_REQUEST_CODE = 1;
+    public static final int INPUT_FILE_REQUEST_CODE = 1;
     private static final int REQUEST_CODE_ASK_PERMISSIONS = 123;
     private static final String URL_MESSAGE = "URL_MESSAGE";
 
-    private App app;
+    private AppSettings appSettings;
+    private final Handler myHandler = new Handler();
+    private WebView webView;
     private String podDomain;
     private Menu menu;
     private int notificationCount = 0;
     private int conversationCount = 0;
+    private String profileId = "";
     private ValueCallback<Uri[]> mFilePathCallback;
     private String mCameraPhotoPath;
-    private WebSettings webSettings;
-    private AppSettings appSettings;
-    private WebUserProfile webUserProfile;
-    private final Handler uiHandler = new Handler();
-
-    @Bind(R.id.swipe)
-    SwipeRefreshLayout swipeRefreshLayout;
-
-    @Bind(R.id.progressBar)
-    ProgressBar progressBar;
-
-    @Bind(R.id.toolbar)
-    Toolbar toolbar;
-
-    @Bind(R.id.webView)
-    WebView webView;
-
-    @Bind(R.id.fab_menubutton)
-    FloatingActionsMenu fab;
-
-    // NavHeader cannot be bound by Butterknife
-    private TextView navheaderTitle;
-    private TextView navheaderDescription;
-    private ImageView navheaderImage;
-
+    private com.getbase.floatingactionbutton.FloatingActionsMenu fab;
+    private TextView txtTitle;
+    private ProgressBar progressBar;
+    private WebSettings wSettings;
+    private PrefManager pm;
+    private SwipeRefreshLayout swipeView;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -132,16 +111,10 @@ public class MainActivity extends AppCompatActivity
         if (android.os.Build.VERSION.SDK_INT >= 21)
             WebView.enableSlowWholeDocumentDraw();
 
-        // Bind UI
         setContentView(R.layout.activity_main);
-        ButterKnife.bind(this);
-
-        app = (App) getApplication();
-        appSettings = app.getSettings();
-        webUserProfile = new WebUserProfile(app,uiHandler,this);
-
-        // Setup toolbar
+        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+
         toolbar.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -149,11 +122,10 @@ public class MainActivity extends AppCompatActivity
                     webView.loadUrl("https://" + podDomain + "/stream");
                     setTitle(R.string.jb_stream);
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                 }
             }
         });
-
 
         // Keyboard State Watcher
         final SoftKeyboardStateWatcher softKeyboardStateWatcher
@@ -164,6 +136,7 @@ public class MainActivity extends AppCompatActivity
             public void onSoftKeyboardOpened(int keyboardHeightInPx) {
                 fab.setVisibility(View.GONE);
             }
+
             @Override
             public void onSoftKeyboardClosed() {
                 fab.setVisibility(View.VISIBLE);
@@ -172,29 +145,48 @@ public class MainActivity extends AppCompatActivity
 
 
         // Load app settings
-        setupNavigationSlider();
+        appSettings = new AppSettings(getApplicationContext());
+        profileId = appSettings.getProfileId();
+
+        DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
+        ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
+                this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
+        drawer.setDrawerListener(toggle);
+        toggle.syncState();
+
+        NavigationView navigationView = (NavigationView) findViewById(R.id.nav_view);
+        navigationView.setNavigationItemSelectedListener(this);
 
         progressBar = (ProgressBar) findViewById(R.id.progressBar);
-        podDomain = appSettings.getPodDomain();
+        pm = new PrefManager(MainActivity.this);
 
-        swipeRefreshLayout.setColorSchemeResources(R.color.colorPrimary,
+        SharedPreferences config = getSharedPreferences("PodSettings", MODE_PRIVATE);
+        podDomain = config.getString("podDomain", null);
+
+        fab = (com.getbase.floatingactionbutton.FloatingActionsMenu) findViewById(R.id.multiple_actions);
+        fab.setVisibility(View.GONE);
+
+        swipeView = (SwipeRefreshLayout) findViewById(R.id.swipe);
+        swipeView.setColorSchemeResources(R.color.colorPrimary,
                 R.color.fab_big);
 
+        webView = (WebView) findViewById(R.id.webView);
         webView.addJavascriptInterface(new JavaScriptInterface(), "AndroidBridge");
+
         if (savedInstanceState != null) {
             webView.restoreState(savedInstanceState);
         }
 
-        webSettings = webView.getSettings();
-        webSettings.setJavaScriptEnabled(true);
-        webSettings.setUseWideViewPort(true);
-        webSettings.setLoadWithOverviewMode(true);
-        webSettings.setDomStorageEnabled(true);
-        webSettings.setMinimumFontSize(appSettings.getMinimumFontSize());
-        webSettings.setLoadsImagesAutomatically(appSettings.isLoadImages());
+        wSettings = webView.getSettings();
+        wSettings.setJavaScriptEnabled(true);
+        wSettings.setUseWideViewPort(true);
+        wSettings.setLoadWithOverviewMode(true);
+        wSettings.setDomStorageEnabled(true);
+        wSettings.setMinimumFontSize(pm.getMinimumFontSize());
+        wSettings.setLoadsImagesAutomatically(pm.getLoadImages());
 
         if (android.os.Build.VERSION.SDK_INT >= 21)
-            webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+            wSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
 
         /*
          * WebViewClient
@@ -210,18 +202,18 @@ public class MainActivity extends AppCompatActivity
             }
 
             public void onPageFinished(WebView view, String url) {
-                swipeRefreshLayout.setRefreshing(false);
+                swipeView.setRefreshing(false);
             }
         });
 
-        swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+        swipeView.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
             @Override
             public void onRefresh() {
                 if (Helpers.isOnline(MainActivity.this)) {
                     webView.reload();
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
-                    swipeRefreshLayout.setRefreshing(false);
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    swipeView.setRefreshing(false);
                 }
             }
         });
@@ -236,11 +228,11 @@ public class MainActivity extends AppCompatActivity
 
                 if (progress > 0 && progress <= 60) {
                     Helpers.getNotificationCount(wv);
-                    Helpers.getUserProfile(wv);
                 }
 
                 if (progress > 60) {
                     Helpers.hideTopBar(wv);
+                    Helpers.getProfileId(wv);
                     fab.setVisibility(View.VISIBLE);
                 }
 
@@ -261,13 +253,13 @@ public class MainActivity extends AppCompatActivity
                 Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
                 if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
                     // Create the File where the photo should go
-                    File photoFile;
+                    File photoFile = null;
                     try {
                         photoFile = createImageFile();
                         takePictureIntent.putExtra("PhotoPath", mCameraPhotoPath);
                     } catch (IOException ex) {
                         // Error occurred while creating the File
-                        Snackbar.make(swipeRefreshLayout, R.string.image, Snackbar.LENGTH_LONG).show();
+                        Snackbar.make(swipeView, R.string.image, Snackbar.LENGTH_LONG).show();
                         return false;
                     }
 
@@ -309,40 +301,10 @@ public class MainActivity extends AppCompatActivity
                 webView.loadData("", "text/html", null);
                 webView.loadUrl("https://" + podDomain);
             } else {
-                Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
             }
         }
 
-    }
-
-    private void setupNavigationSlider(){
-        DrawerLayout drawer = ButterKnife.findById(this, R.id.drawer_layout);
-        ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
-                this, drawer, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
-        drawer.addDrawerListener(toggle);
-        toggle.syncState();
-
-        NavigationView navigationView = ButterKnife.findById(this, R.id.nav_view);
-        navigationView.setNavigationItemSelectedListener(this);
-
-        View navHeader = navigationView.getHeaderView(0);
-        navheaderTitle = ButterKnife.findById(navHeader,R.id.navheader_title);
-        navheaderDescription = ButterKnife.findById(navHeader,R.id.navheader_description);
-        navheaderImage = ButterKnife.findById(navHeader,R.id.navheader_user_image);
-
-        if(!appSettings.getName().equals("")) {
-            navheaderTitle.setText(appSettings.getName());
-        }
-        if(!appSettings.getPodDomain().equals("")){
-            navheaderDescription.setText(appSettings.getPodDomain());
-        }
-        if(!appSettings.getAvatarUrl().equals("")){
-            // Try to load image
-            if(!app.getAvatarImageLoader().loadToImageView(navheaderImage)){
-                // If not yet loaded, start download
-                app.getAvatarImageLoader().startImageDownload(navheaderImage, appSettings.getAvatarUrl());
-            }
-        }
     }
 
     /*
@@ -350,12 +312,35 @@ public class MainActivity extends AppCompatActivity
      */
 
     public void fab1_click(View v) {
+        if (android.os.Build.VERSION.SDK_INT >= 23) {
+            int hasWRITE_EXTERNAL_STORAGE = checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+            if (hasWRITE_EXTERNAL_STORAGE != PackageManager.PERMISSION_GRANTED) {
+                if (!shouldShowRequestPermissionRationale(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                    new AlertDialog.Builder(MainActivity.this)
+                            .setMessage(R.string.permissions)
+                            .setPositiveButton(getString(R.string.yes), new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    if (android.os.Build.VERSION.SDK_INT >= 23)
+                                        requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                                                REQUEST_CODE_ASK_PERMISSIONS);
+                                }
+                            })
+                            .setNegativeButton(getString(R.string.no), null)
+                            .show();
+                    return;
+                }
+                requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                        REQUEST_CODE_ASK_PERMISSIONS);
+                return;
+            }
+        }
         fab.collapse();
         if (Helpers.isOnline(MainActivity.this)) {
             webView.loadUrl("https://" + podDomain + "/status_messages/new");
             setTitle(R.string.fab1_title);
         } else {
-            Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+            Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
         }
     }
 
@@ -374,7 +359,7 @@ public class MainActivity extends AppCompatActivity
                             // this validate the input data for tagfind
                             if (cleanTag == null || cleanTag.equals("")) {
                                 dialog.cancel(); // if user don�t have added a tag
-                                Snackbar.make(swipeRefreshLayout, R.string.search_alert_bypeople_validate_needsomedata, Snackbar.LENGTH_LONG).show();
+                                Snackbar.make(swipeView, R.string.search_alert_bypeople_validate_needsomedata, Snackbar.LENGTH_LONG).show();
                             } else { // User have added a search tag
                                 webView.loadUrl("https://" + podDomain + "/people.mobile?q=" + cleanTag);
                                 setTitle(R.string.fab2_title_person);
@@ -389,7 +374,7 @@ public class MainActivity extends AppCompatActivity
                                     // this validate the input data for tagfind
                                     if (cleanTag == null || cleanTag.equals("")) {
                                         dialog.cancel(); // if user hasn't added a tag
-                                        Snackbar.make(swipeRefreshLayout, R.string.search_alert_bytags_validate_needsomedata, Snackbar.LENGTH_LONG).show();
+                                        Snackbar.make(swipeView, R.string.search_alert_bytags_validate_needsomedata, Snackbar.LENGTH_LONG).show();
                                     } else { // User have added a search tag
                                         webView.loadUrl("https://" + podDomain + "/tags/" + cleanTag);
                                         setTitle(R.string.fab2_title_tag);
@@ -398,7 +383,7 @@ public class MainActivity extends AppCompatActivity
                             });
             dialog.show();
         } else {
-            Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+            Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
         }
     }
 
@@ -471,7 +456,7 @@ public class MainActivity extends AppCompatActivity
             setTitle(R.string.app_name);
         } else {
             Snackbar snackbar = Snackbar
-                    .make(swipeRefreshLayout, R.string.confirm_exit, Snackbar.LENGTH_LONG)
+                    .make(swipeView, R.string.confirm_exit, Snackbar.LENGTH_LONG)
                     .setAction(R.string.yes, new View.OnClickListener() {
                         @Override
                         public void onClick(View view) {
@@ -487,7 +472,7 @@ public class MainActivity extends AppCompatActivity
         @Override
         public void onReceive(Context context, Intent intent) {
             String url = intent.getStringExtra("url");
-            setTitle(R.string.app_name);
+            txtTitle.setText(R.string.app_name);
             webView.loadUrl(url);
         }
     };
@@ -534,7 +519,7 @@ public class MainActivity extends AppCompatActivity
                     setTitle(R.string.jb_notifications);
                     return true;
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                     return false;
                 }
             }
@@ -545,7 +530,7 @@ public class MainActivity extends AppCompatActivity
                     setTitle(R.string.jb_conversations);
                     return true;
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                     return false;
                 }
             }
@@ -553,7 +538,7 @@ public class MainActivity extends AppCompatActivity
             case R.id.action_exit: {
                 moveTaskToBack(true);
             }
-            return true;
+            break;
 
             case R.id.action_share: {
                 final CharSequence[] options = {getString(R.string.share_link), getString(R.string.share_screenshot), getString(R.string.take_screenshot)};
@@ -563,7 +548,7 @@ public class MainActivity extends AppCompatActivity
                             public void onClick(DialogInterface dialog, int item) {
                                 if (options[item].equals(getString(R.string.share_link))) {
                                     Intent sharingIntent = new Intent(Intent.ACTION_SEND);
-                                    sharingIntent.setType("text/plain");
+                                    sharingIntent.setType("image/png");
                                     sharingIntent.putExtra(Intent.EXTRA_SUBJECT, webView.getTitle());
                                     sharingIntent.putExtra(Intent.EXTRA_TEXT, webView.getUrl());
                                     startActivity(Intent.createChooser(sharingIntent, "Share using"));
@@ -592,7 +577,7 @@ public class MainActivity extends AppCompatActivity
                                             return;
                                         }
                                     }
-                                    Snackbar.make(swipeRefreshLayout, R.string.toast_screenshot, Snackbar.LENGTH_LONG).show();
+                                    Snackbar.make(swipeView, R.string.toast_screenshot, Snackbar.LENGTH_LONG).show();
                                     File directory = new File(Environment.getExternalStorageDirectory() + "/Pictures/Diaspora/");
                                     if (!directory.exists()) {
                                         directory.mkdirs();
@@ -655,7 +640,7 @@ public class MainActivity extends AppCompatActivity
                                             return;
                                         }
                                     }
-                                    Snackbar.make(swipeRefreshLayout, R.string.toast_screenshot, Snackbar.LENGTH_LONG).show();
+                                    Snackbar.make(swipeView, R.string.toast_screenshot, Snackbar.LENGTH_LONG).show();
                                     File directory = new File(Environment.getExternalStorageDirectory() + "/Pictures/Diaspora/");
                                     if (!directory.exists()) {
                                         directory.mkdirs();
@@ -670,7 +655,7 @@ public class MainActivity extends AppCompatActivity
                                     if (screen.exists())
                                         screen.delete();
                                     picture.draw(c);
-                                    FileOutputStream fos;
+                                    FileOutputStream fos = null;
                                     try {
                                         fos = new FileOutputStream(screen);
                                         if (fos != null) {
@@ -689,7 +674,7 @@ public class MainActivity extends AppCompatActivity
                             }
                         }).show();
             }
-            return true;
+            break;
         }
         return super.onOptionsItemSelected(item);
     }
@@ -723,51 +708,29 @@ public class MainActivity extends AppCompatActivity
                                 .findViewById(selectedId);
 
                         if (selectedRadioButton.getId() == R.id.radNormal) {
-                            appSettings.setMinimumFontSize(8);
+                            pm.setMinimumFontSize(8);
                         } else if (selectedRadioButton.getId() == R.id.radLarge) {
-                            appSettings.setMinimumFontSize(16);
+                            pm.setMinimumFontSize(16);
                         } else if (selectedRadioButton.getId() == R.id.radLarger) {
-                            appSettings.setMinimumFontSize(20);
+                            pm.setMinimumFontSize(20);
                         }
 
-                        webSettings.setMinimumFontSize(appSettings.getMinimumFontSize());
+                        wSettings.setMinimumFontSize(pm.getMinimumFontSize());
 
                         if (Helpers.isOnline(MainActivity.this)) {
                             webView.loadUrl(webView.getUrl());
                         } else {
-                            Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                            Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                         }
                         dialog.cancel();
                     }
                 }).show();
     }
 
-    @Override
-    public void onUserProfileNameChanged(String name) {
-        navheaderTitle.setText(name);
-    }
-
-    @Override
-    public void onUserProfileAvatarChanged(String avatarUrl) {
-        app.getAvatarImageLoader().startImageDownload(navheaderImage, avatarUrl);
-    }
-
-    // TODO: Move from Javascript interface
-    @Override
-    public void onNotificationCountChanged(int notificationCount) {
-
-    }
-
-    // TODO: Move from Javascript interface
-    @Override
-    public void onUnreadMessageCountChanged(int unreadMessageCount) {
-
-    }
-
-    private class JavaScriptInterface {
+    public class JavaScriptInterface {
         @JavascriptInterface
         public void setNotificationCount(final String webMessage) {
-            uiHandler.post(new Runnable() {
+            myHandler.post(new Runnable() {
                 @Override
                 public void run() {
                     notificationCount = Integer.valueOf(webMessage);
@@ -778,7 +741,7 @@ public class MainActivity extends AppCompatActivity
                         if (notificationCount > 0) {
                             item.setIcon(R.drawable.ic_bell_ring_white_24dp);
                             Snackbar snackbar = Snackbar
-                                    .make(swipeRefreshLayout, R.string.new_notifications, Snackbar.LENGTH_LONG)
+                                    .make(swipeView, R.string.new_notifications, Snackbar.LENGTH_LONG)
                                     .setAction(R.string.yes, new View.OnClickListener() {
                                         @Override
                                         public void onClick(View view) {
@@ -786,7 +749,7 @@ public class MainActivity extends AppCompatActivity
                                                 webView.loadUrl("https://" + podDomain + "/notifications");
                                                 setTitle(R.string.jb_notifications);
                                             } else {
-                                                Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                                                Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                                             }
                                         }
                                     });
@@ -802,15 +765,18 @@ public class MainActivity extends AppCompatActivity
         }
 
         @JavascriptInterface
-        public void setUserProfile(final String webMessage) throws JSONException {
-            if (webUserProfile.isRefreshNeeded()){
-                webUserProfile.parseJson(webMessage);
+        public void setProfileId(final String webMessage) {
+            if(profileId.equals("") || !profileId.equals(webMessage)) {
+                profileId = webMessage;
+                appSettings.setProfileId(profileId);
             }
         }
 
-        @JavascriptInterface
+
+
+            @JavascriptInterface
         public void setConversationCount(final String webMessage) {
-            uiHandler.post(new Runnable() {
+            myHandler.post(new Runnable() {
                 @Override
                 public void run() {
                     conversationCount = Integer.valueOf(webMessage);
@@ -821,7 +787,7 @@ public class MainActivity extends AppCompatActivity
                         if (conversationCount > 0) {
                             item.setIcon(R.drawable.ic_message_text_white_24dp);
                             Snackbar snackbar = Snackbar
-                                    .make(swipeRefreshLayout, R.string.new_conversations, Snackbar.LENGTH_LONG)
+                                    .make(swipeView, R.string.new_conversations, Snackbar.LENGTH_LONG)
                                     .setAction(R.string.yes, new View.OnClickListener() {
                                         @Override
                                         public void onClick(View view) {
@@ -829,7 +795,7 @@ public class MainActivity extends AppCompatActivity
                                                 webView.loadUrl("https://" + podDomain + "/conversations");
                                                 setTitle(R.string.jb_notifications);
                                             } else {
-                                                Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                                                Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                                             }
                                         }
                                     });
@@ -855,17 +821,17 @@ public class MainActivity extends AppCompatActivity
                     webView.loadUrl("https://" + podDomain + "/stream");
                     setTitle(R.string.jb_stream);
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                 }
             }
             break;
 
             case R.id.nav_profile: {
                 if (Helpers.isOnline(MainActivity.this)) {
-                    webView.loadUrl("https://" + podDomain + "/people/" + appSettings.getProfileId());
+                    webView.loadUrl("https://" + podDomain + "/people/" + profileId);
                     setTitle(R.string.jb_profile);
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                 }
             }
             break;
@@ -876,7 +842,7 @@ public class MainActivity extends AppCompatActivity
                     webView.loadUrl("https://" + podDomain + "/followed_tags");
                     setTitle(R.string.jb_followed_tags);
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                 }
             }
             break;
@@ -886,7 +852,7 @@ public class MainActivity extends AppCompatActivity
                     webView.loadUrl("https://" + podDomain + "/aspects");
                     setTitle(R.string.jb_aspects);
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                 }
             }
             break;
@@ -896,7 +862,7 @@ public class MainActivity extends AppCompatActivity
                     webView.loadUrl("https://" + podDomain + "/activity");
                     setTitle(R.string.jb_activities);
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                 }
             }
             break;
@@ -906,7 +872,7 @@ public class MainActivity extends AppCompatActivity
                     webView.loadUrl("https://" + podDomain + "/liked");
                     setTitle(R.string.jb_liked);
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                 }
             }
             break;
@@ -916,7 +882,7 @@ public class MainActivity extends AppCompatActivity
                     webView.loadUrl("https://" + podDomain + "/commented");
                     setTitle(R.string.jb_commented);
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                 }
             }
             break;
@@ -926,7 +892,7 @@ public class MainActivity extends AppCompatActivity
                     webView.loadUrl("https://" + podDomain + "/mentions");
                     setTitle(R.string.jb_mentions);
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                 }
             }
             break;
@@ -936,7 +902,7 @@ public class MainActivity extends AppCompatActivity
                     webView.loadUrl("https://" + podDomain + "/public");
                     setTitle(R.string.jb_public);
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                 }
             }
             break;
@@ -953,13 +919,13 @@ public class MainActivity extends AppCompatActivity
                                     if (options[item].equals(getString(R.string.settings_view)))
                                         webView.loadUrl("https://" + podDomain + "/mobile/toggle");
                                     if (options[item].equals(getString(R.string.settings_image)))
-                                        webSettings.setLoadsImagesAutomatically(!appSettings.isLoadImages());
-                                    appSettings.setLoadImages(!appSettings.isLoadImages());
+                                        wSettings.setLoadsImagesAutomatically(!pm.getLoadImages());
+                                    pm.setLoadImages(!pm.getLoadImages());
                                     webView.loadUrl(webView.getUrl());
                                 }
                             }).show();
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                 }
             }
             break;
@@ -1002,13 +968,13 @@ public class MainActivity extends AppCompatActivity
                                 }
                             }).show();
                 } else {
-                    Snackbar.make(swipeRefreshLayout, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(swipeView, R.string.no_internet, Snackbar.LENGTH_LONG).show();
                 }
             }
             break;
 
             case R.id.nav_license_help: {
-                final CharSequence[] options = {getString(R.string.help_license), getString(R.string.help_about), getString(R.string.help_help)};
+                final CharSequence[] options = {getString(R.string.help_license), getString(R.string.help_about), getString(R.string.help_help), getString(R.string.help_donate)};
                 new AlertDialog.Builder(MainActivity.this)
                         .setItems(options, new DialogInterface.OnClickListener() {
                             @Override
@@ -1050,6 +1016,24 @@ public class MainActivity extends AppCompatActivity
                                             .setPositiveButton(getString(R.string.yes),
                                                     new DialogInterface.OnClickListener() {
                                                         public void onClick(DialogInterface dialog, int id) {
+                                                            dialog.cancel();
+                                                        }
+                                                    }).show();
+                                }
+                                if (options[item].equals(getString(R.string.help_donate))) {
+                                    new AlertDialog.Builder(MainActivity.this)
+                                            .setMessage(getString(R.string.donate_text))
+                                            .setPositiveButton(getString(R.string.yes),
+                                                    new DialogInterface.OnClickListener() {
+                                                        public void onClick(DialogInterface dialog, int id) {
+                                                            dialog.cancel();
+                                                        }
+                                                    })
+                                            .setNegativeButton(getString(R.string.donate_1),
+                                                    new DialogInterface.OnClickListener() {
+                                                        public void onClick(DialogInterface dialog, int id) {
+                                                            Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse("http://martinv.tip.me/"));
+                                                            startActivity(i);
                                                             dialog.cancel();
                                                         }
                                                     }).show();

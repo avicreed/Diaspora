@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:re="http://schemas.android.com/tools" xmlns:href="urn:oasis:names:tc:xliff:document:1.2">
     <string name="reload">Neu laden</string>
     <string name="title_activity_pods">Pod auswählen</string>
     <string name="filter_hint">Pod-Domain eingeben</string>
@@ -8,7 +8,7 @@
     <string name="podlist_source_note">Anmerkung: Auf dieser Liste finden sich nur Einträge von podupti.me</string>
     <string name="valid_pod">Bitte einen gültigen Domain-Namen (URL) eingeben</string>
     <string name="podlist_error">Fehler: Konnte die Podliste nicht abfragen!</string>
-    <string name="loading_podlist">Podliste wird geladen…</string>
+    <string name="loading_podlist">Podliste wird geladen...</string>
     <string name="no_internet">Entschuldigung, du musst mit dem Internet verbunden sein um fortzufahren.</string>
     <string name="confirmation">Bestätigung</string>
     <string name="confirm_pod">Willst du folgenden Pod benutzen: </string>
@@ -44,7 +44,7 @@
     // Floating Action Buttons - Titles
 
     <string name="fab3_title">Nach oben scrollen</string>
-    <string name="fab2_title">Suche nach Tags oder Personen …</string>
+    <string name="fab2_title">Suche nach Tags oder Personen ...</string>
     <string name="fab1_title">Neuer Beitrag</string>
 
     <string name="search_alert_title">Suche</string>
@@ -58,20 +58,21 @@
 
     //Dialog
     <string name="messages">Unterhaltungen</string>
-    <string name="new_post">D* Neuer Beitrag</string>
+    <string name="new_post">D* Text</string>
     <string name="notifications">Benachrichtigungen</string>
     <string name="settings_font">Schriftgröße ändern</string>
     <string name="settings_image">Bilder laden umschalten</string>
     <string name="settings_view">Ansicht wechseln</string>
+    <string name="please_reload">Bitte den Stream neu laden.</string>
     <string name="normal">normal</string>
     <string name="large">groß</string>
     <string name="huge">riesig</string>
-    <string name="image">Konnte Bild nicht laden …</string>
+    <string name="image">Konnte Bild nicht laden ...</string>
     <string name="jb_share">Inhalt Teilen</string>
     <string name="share_link">Link als Text teilen</string>
     <string name="share_screenshot">Bildschirmfoto teilen</string>
     <string name="take_screenshot">Bildschirmfoto machen</string>
-    <string name="toast_screenshot">Bildschirmfoto wird gespeichert…</string>
+    <string name="toast_screenshot">Bildschirmfoto wird gespeichert...</string>
     <string name="jb_settings_diaspora">Diaspora Einstellungen</string>
     <string name="jb_settings_view">Ansichtseinstellungen</string>
     <string name="help_help">Markdown Formatierung</string>
@@ -121,10 +122,11 @@
         &lt;b>Sonderzeichen&lt;/b>&lt;br>
         Du kannst Symbole und Sonderzeichen nutzen, indem du bestimmte Zeichenfolgen verwendest. Z.B.:&lt;br>
         (c) = © ; (r) = ® ; x^2 = x²"</string>
-    <string name="license_text">&lt;b>Beteiligte:&lt;/b>&lt;br>
-
-        &#8226; de-live-gdev https://de-live-gdev.github.io&lt;br>
-        &#8226; scoute-dich https://github.com/scoute-dich&lt;br> &lt;br>
+    <string name="license_yes">OK</string>
+    <string name="license_text">&lt;i>Zuerst einmal: ich bin kein Entwickler. Ich verstehe ein paar Grundlagen, aber das Meiste meiner
+        Arbeit ist mit \"Copy and Paste\" passiert. Diese App ist ein Fork der original \"DiasporaNativeWebApp\"
+        von \"martinchodev\" (der die allermeiste Arbeit erledigt hat -> mein großer Dank gilt ihm), welche unter der GPL-Lizenz
+        veröffentlicht wurde.&lt;/i> &lt;br> &lt;br>
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -139,19 +141,20 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see http://www.gnu.org/licenses.&lt;br> &lt;br>
 
-        &lt;i>Die App ist ein Fork von \"DiasporaNativeWebApp\"
-        von \"martinchodev\". Die Bilder des Startbildschirms können auf Flickr gefunden werden:
+        &lt;i>Die Bilder des Startbildschirms können auf Flickr gefunden werden:
         https://www.flickr.com/photos/129581906@N06/sets/72157651933980136/with/16594947123.
         Sie wurden von \"Lydia\" veröffentlicht und stehen unter der cc by-nc-sa Lizenz.&lt;/i></string>
     <string name="fab2_title_person">Suche nach Personen …</string>
     <string name="fab2_title_tag">Suche nach Tags …</string>
+    <string name="donate_1">per Bitcoin</string>
+    <string name="donate_text">Wenn dir die App gefällt, kannst du dem Entwickler der original \"DiasporaNativeWebApp\"
+        eine Kleinigkeit spenden:</string>
+    <string name="help_donate">Spenden</string>
     <string name="splash_screen_description">Startbildschirm</string>
     <string name="new_conversations">Ungelesene Unterhaltung. Öffnen?</string>
     <string name="new_notifications">Ungelesene Benachrichtigung. Lesen?</string>
     <string name="help_about">Changelog</string>
-    <string name="new_post2">D* Titel und Text</string>
+    <string name="new_post2">D* Titel/Text</string>
     <string name="jb_profile">Profil</string>
-    <string name="new_post1">D* nur Text</string>
-    <string name="shared_by_diaspora_android">*[geteilt durch #DiasporaAndroid]*</string>
 
 </resources>

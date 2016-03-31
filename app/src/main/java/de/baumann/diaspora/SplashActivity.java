@@ -32,7 +32,8 @@ import java.util.TimerTask;
 
 
 public class SplashActivity extends AppCompatActivity {
-    private App app;
+
+    ImageView imgSplash;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,22 +41,22 @@ public class SplashActivity extends AppCompatActivity {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
                 WindowManager.LayoutParams.FLAG_FULLSCREEN);
         setContentView(R.layout.activity_splash);
-        app = (App)getApplication();
 
-        ImageView imgSplash = (ImageView) findViewById(R.id.imgSplash);
+        imgSplash = (ImageView) findViewById(R.id.imgSplash);
 
         TypedArray images = getResources().obtainTypedArray(R.array.splash_images);
         int choice = (int) (Math.random() * images.length());
         imgSplash.setImageResource(images.getResourceId(choice, R.drawable.splashscreen1));
         images.recycle();
 
+        final SharedPreferences config = getSharedPreferences("PodSettings", MODE_PRIVATE);
 
         Timer timer = new Timer();
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
                 Intent i;
-                if (!app.getSettings().getPodDomain().equals("")) {
+                if (config.getString("podDomain", null) != null) {
                     i = new Intent(SplashActivity.this, MainActivity.class);
                 } else {
                     i = new Intent(SplashActivity.this, PodsActivity.class);

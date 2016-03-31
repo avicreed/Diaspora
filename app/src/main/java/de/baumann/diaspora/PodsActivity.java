@@ -31,7 +31,7 @@ import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.design.widget.Snackbar;
-import android.support.v7.app.AppCompatActivity;
+import android.support.v7.app.ActionBarActivity;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.view.Menu;
@@ -52,32 +52,32 @@ import de.baumann.diaspora.services.GetPodsService;
 import de.baumann.diaspora.utils.Helpers;
 
 
-public class PodsActivity extends AppCompatActivity {
+public class PodsActivity extends ActionBarActivity {
 
-    private BroadcastReceiver podListReceiver;
-    private EditText filter;
-    private ListView lv;
-    private ProgressDialog progressDialog;
-    private App app;
+    BroadcastReceiver podListReceiver;
+    EditText filter;
+    ListView lv;
+    ImageView imgSelectPod;
+    ProgressDialog progressDialog;
+    private static final String TAG = "Diaspora Pods";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_pods);
-        app = (App) getApplication();
         
         filter = (EditText) findViewById(R.id.edtFilter);
         lv = (ListView) findViewById(R.id.lstPods);
         lv.setTextFilterEnabled(true);
 
-        ImageView imgSelectPod = (ImageView) findViewById(R.id.imgSelectPod);
+        imgSelectPod = (ImageView) findViewById(R.id.imgSelectPod);
         imgSelectPod.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (filter.getText().length() > 4 && filter.getText().toString().contains("."))
                     askConfirmation(filter.getText().toString());
                 else
-                    Snackbar.make(lv, R.string.valid_pod, Snackbar.LENGTH_LONG).show();
+                    Snackbar.make(lv, R.string.valid_pod, Snackbar.LENGTH_INDEFINITE).show();
             }
         });
 
@@ -96,6 +96,8 @@ public class PodsActivity extends AppCompatActivity {
                     else {
                         Snackbar.make(lv, R.string.podlist_error, Snackbar.LENGTH_LONG).show();
                     }
+                } else {
+                    // List of pods empty
                 }
             }
         };
@@ -110,7 +112,7 @@ public class PodsActivity extends AppCompatActivity {
         if (Helpers.isOnline(PodsActivity.this)) {
             progressDialog.show();
         } else {
-            Snackbar.make(lv, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+            Snackbar.make(lv, R.string.no_internet, Snackbar.LENGTH_INDEFINITE).show();
         }
 
     }
@@ -126,12 +128,12 @@ public class PodsActivity extends AppCompatActivity {
     private void updateListview(String[] source) {
         final ArrayList<String> podList = new ArrayList<>();
 
-        for (String aSource : source) {
-            podList.add(aSource.toLowerCase());
+        for (int i = 0 ; i < source.length ; i++) {
+            podList.add(source[i].toLowerCase());
         }
         Collections.sort(podList);
 
-        final ArrayAdapter<String> adapter = new ArrayAdapter<>(
+        final ArrayAdapter<String> adapter = new ArrayAdapter<String>(
                 PodsActivity.this,
                 android.R.layout.simple_list_item_1,
                 podList);
@@ -161,7 +163,7 @@ public class PodsActivity extends AppCompatActivity {
 
     }
 
-    private void askConfirmation(final String podDomain) {
+    public void askConfirmation(final String podDomain) {
         if (Helpers.isOnline(PodsActivity.this)) {
             new AlertDialog.Builder(PodsActivity.this)
                     .setTitle(getString(R.string.confirmation))
@@ -170,7 +172,10 @@ public class PodsActivity extends AppCompatActivity {
                             new DialogInterface.OnClickListener() {
                                 public void onClick(DialogInterface dialog, int id) {
 
-                                    app.getSettings().setPodDomain(podDomain);
+                                    SharedPreferences sp = getSharedPreferences("PodSettings", MODE_PRIVATE);
+                                    SharedPreferences.Editor editor = sp.edit();
+                                    editor.putString("podDomain", podDomain);
+                                    editor.apply();
 
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                                         try {
@@ -202,7 +207,7 @@ public class PodsActivity extends AppCompatActivity {
                     }).show();
 
         } else {
-            Snackbar.make(lv, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+            Snackbar.make(lv, R.string.no_internet, Snackbar.LENGTH_INDEFINITE).show();
         }
     }
 
@@ -243,7 +248,7 @@ public class PodsActivity extends AppCompatActivity {
                 startService(i);
                 return true;
             } else {
-                Snackbar.make(lv, R.string.no_internet, Snackbar.LENGTH_LONG).show();
+                Snackbar.make(lv, R.string.no_internet, Snackbar.LENGTH_INDEFINITE).show();
                 return false;
             }
         }

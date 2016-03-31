@@ -18,6 +18,10 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
     }
+
+    lintOptions {
+        disable 'MissingTranslation'
+    }
 }
 
 dependencies {
@@ -26,5 +30,4 @@ dependencies {
     compile 'com.android.support:appcompat-v7:23.2.1'
     compile 'com.android.support:design:23.2.1'
     compile 'com.getbase:floatingactionbutton:1.9.1'
-    compile 'com.jakewharton:butterknife:7.0.1'
 }
