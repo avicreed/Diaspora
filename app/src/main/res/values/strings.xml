@@ -166,6 +166,19 @@
         &#8226; implemented swipe to refresh
     </string>
 
+    <string name="about2_text">
+        &lt;i>This app is not longer under developement. We (de-live-gdev, MartinV and I) joind our forces
+        to develop a new diaspora app from scratch. The new app is still in Beta. Some functions are broken.
+        I will notice you, if there is a more or less stable release. Of course you can test the new app und send bug reports,
+        or join our tem.&lt;/i>&lt;br>&lt;br>
+
+        &lt;b>Diaspora for Android Projectsite:&lt;/b>&lt;br>
+        &lt;i>https://github.com/Diaspora-for-Android/diaspora-android&lt;/i>&lt;br>
+
+        &lt;b>Diaspora for Android on F-Droid:&lt;/b>&lt;br>
+        &lt;i>https://f-droid.org/repository/browse/?fdid=com.github.dfa.diaspora_android&lt;/i>&lt;br>
+    </string>
+
     <string name="license_yes">OK</string>
     <string name="license_title" translatable="false">Copyright © 2016  by scoute-dich</string>
     <string name="license_text">&lt;i>First of all: I am not a developer. I understand a few basics and most of my work is done

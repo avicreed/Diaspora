@@ -188,6 +188,19 @@ public class MainActivity extends AppCompatActivity
         if (android.os.Build.VERSION.SDK_INT >= 21)
             wSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
 
+        final SpannableString s = new SpannableString(Html.fromHtml(getString(R.string.about2_text)));
+        Linkify.addLinks(s, Linkify.WEB_URLS);
+        final AlertDialog d = new AlertDialog.Builder(MainActivity.this)
+                .setMessage(s)
+                .setPositiveButton(getString(R.string.yes),
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int id) {
+                                dialog.cancel();
+                            }
+                        }).show();
+        d.show();
+        ((TextView) d.findViewById(android.R.id.message)).setMovementMethod(LinkMovementMethod.getInstance());
+
         /*
          * WebViewClient
          */
